@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>GM画面</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body{font-family:sans-serif;text-align:center;padding:20px;background:#eee}
+        .box{background:#fff;padding:20px;border-radius:10px;margin-bottom:20px}
+        #win{font-size:3em;font-weight:bold;color:red;min-height:1.2em}
+        button{font-size:1.5em;padding:15px;margin:10px;width:80%;border-radius:10px;border:none}
+        #start{background:#f90;color:#fff} #reset{background:#666;color:#fff}
+    </style>
+</head>
+<body>
+    <div class="box"><div>1着のチーム</div><div id="win">---</div></div>
+    <button id="start">スタート</button>
+    <button id="reset">リセット</button>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script>
+        // ▼▼ Config書き換え ▼▼
+      const firebaseConfig = {
+    apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
+    authDomain: "hayaoshi--momo.firebaseapp.com",
+    projectId: "hayaoshi--momo",
+    storageBucket: "hayaoshi--momo.firebasestorage.app",
+    messagingSenderId: "178861367734",
+    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
+    measurementId: "G-1EBXBQRBLK"
+  };
+        // ▲▲ 書き換えここまで ▲▲
+        firebase.initializeApp(cfg);
+        const db=firebase.database(), ref=db.ref('room');
+        const audio=new(window.AudioContext||window.webkitAudioContext)();
+        function beep(){
+            if(audio.state==='suspended')audio.resume();
+            const o=audio.createOscillator(),g=audio.createGain();
+            o.connect(g);g.connect(audio.destination);
+            o.frequency.value=880;g.gain.setValueAtTime(0.5,audio.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01,audio.currentTime+0.5);
+            o.start();o.stop(audio.currentTime+0.5);
+        }
+        ref.child('win').on('value',s=>{
+            const w=s.val(); document.getElementById('win').innerText=w||"---";
+            if(w)beep();
+        });
+        document.getElementById('start').onclick=()=>ref.update({st:'open',win:null});
+        document.getElementById('reset').onclick=()=>ref.update({st:'close',win:null});
+    </script>
+</body>
+</html>
