@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ボタン</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation}
+        input{font-size:1.2em;padding:10px;width:80%;margin-bottom:20px}
+        #game{display:none}
+        #btn{width:80vw;height:80vw;max-width:300px;max-height:300px;border-radius:50%;border:none;font-size:2em;color:#fff;background:#ccc;box-shadow:0 8px #999}
+        #btn.on{background:#f33;box-shadow:0 8px #c00}
+        #btn:active{transform:translateY(4px);box-shadow:0 4px #999}
+        #msg{margin-top:20px;font-size:1.5em;font-weight:bold}
+    </style>
+</head>
+<body>
+    <div id="login"><h2>名前</h2><input id="name"><br><button onclick="join()" style="font-size:1.2em;padding:10px">参加</button></div>
+    <div id="game"><h3><span id="dname"></span></h3><button id="btn" disabled>待機</button><div id="msg"></div></div>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script>
+        // ▼▼ Config書き換え ▼▼
+        const const firebaseConfig = {
+    apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
+    authDomain: "hayaoshi--momo.firebaseapp.com",
+    projectId: "hayaoshi--momo",
+    storageBucket: "hayaoshi--momo.firebasestorage.app",
+    messagingSenderId: "178861367734",
+    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
+    measurementId: "G-1EBXBQRBLK"
+  };
+        // ▲▲ 書き換えここまで ▲▲
+        firebase.initializeApp(cfg);
+        const db=firebase.database(), ref=db.ref('room');
+        let me="",ok=false;
+        function join(){
+            me=document.getElementById('name').value;
+            if(!me)return;
+            document.getElementById('login').style.display='none';
+            document.getElementById('game').style.display='block';
+            document.getElementById('dname').innerText=me;
+        }
+        const b=document.getElementById('btn'), m=document.getElementById('msg');
+        ref.on('value',s=>{
+            const d=s.val()||{};
+            if(d.st==='open'&&!d.win){
+                b.disabled=false;b.className='on';b.innerText="PUSH!";m.innerText="";ok=true;
+            }else{
+                b.disabled=true;b.className='';ok=false;
+                if(d.win===me){b.style.background="#f33";b.innerText="1着!";m.style.color="red";m.innerText="あなたが1着!"}
+                else if(d.win){b.style.background="#ccc";b.innerText="LOCK";m.style.color="#000";m.innerText=d.win+"が獲得"}
+                else{b.style.background="#ccc";b.innerText="待機";m.innerText="待ち..."}
+            }
+        });
+        b.onclick=(e)=>{
+            e.preventDefault(); if(!ok)return;
+            ref.child('win').transaction(c=>c===null?me:undefined);
+        };
+    </script>
+</body>
+</html>
