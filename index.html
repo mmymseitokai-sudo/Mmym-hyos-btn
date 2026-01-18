@@ -6,47 +6,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body{font-family:sans-serif;text-align:center;padding:20px;background:#eee}
-        .box{background:#fff;padding:20px;border-radius:10px;margin-bottom:20px}
-        #win{font-size:3em;font-weight:bold;color:red;min-height:1.2em}
-        button{font-size:1.5em;padding:15px;margin:10px;width:80%;border-radius:10px;border:none}
-        #start{background:#f90;color:#fff} #reset{background:#666;color:#fff}
+        .box{background:#fff;padding:20px;border-radius:10px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}
+        h2{margin:0;color:#555;font-size:1em}
+        #win{font-size:3em;font-weight:bold;color:red;min-height:1.2em;margin-top:10px}
+        button{font-size:1.5em;padding:15px;margin:10px;width:90%;max-width:400px;border-radius:10px;border:none;cursor:pointer;color:white;font-weight:bold}
+        #start{background:#ff9900;box-shadow:0 5px #cc7a00}
+        #start:active{transform:translateY(4px);box-shadow:0 2px #cc7a00}
+        #reset{background:#666;box-shadow:0 5px #444}
+        #reset:active{transform:translateY(4px);box-shadow:0 2px #444}
+        .status-lamp{display:inline-block;width:15px;height:15px;border-radius:50%;background:#ccc;margin-right:5px}
     </style>
 </head>
 <body>
-    <div class="box"><div>1着のチーム</div><div id="win">---</div></div>
-    <button id="start">スタート</button>
+    <div class="box">
+        <h2>現在の回答権</h2>
+        <div id="win">---</div>
+    </div>
+
+    <button id="start">問題スタート！</button>
+    <br>
     <button id="reset">リセット</button>
+
+    <div style="margin-top:20px;color:#888;font-size:0.8em">
+        <span id="lamp" class="status-lamp"></span>システム接続: <span id="conn-status">接続中...</span>
+    </div>
+
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
     <script>
-        // ▼▼ Config書き換え ▼▼
-      const firebaseConfig = {
-    apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
-    authDomain: "hayaoshi--momo.firebaseapp.com",
-    projectId: "hayaoshi--momo",
-    storageBucket: "hayaoshi--momo.firebasestorage.app",
-    messagingSenderId: "178861367734",
-    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
-    measurementId: "G-1EBXBQRBLK"
-  };
-        // ▲▲ 書き換えここまで ▲▲
-        firebase.initializeApp(cfg);
-        const db=firebase.database(), ref=db.ref('room');
-        const audio=new(window.AudioContext||window.webkitAudioContext)();
-        function beep(){
-            if(audio.state==='suspended')audio.resume();
-            const o=audio.createOscillator(),g=audio.createGain();
-            o.connect(g);g.connect(audio.destination);
-            o.frequency.value=880;g.gain.setValueAtTime(0.5,audio.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.01,audio.currentTime+0.5);
-            o.start();o.stop(audio.currentTime+0.5);
+        // ▼▼▼ あなたの設定コードを埋め込んでおきました ▼▼▼
+        const firebaseConfig = {
+            apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
+            authDomain: "hayaoshi--momo.firebaseapp.com",
+            projectId: "hayaoshi--momo",
+            storageBucket: "hayaoshi--momo.firebasestorage.app",
+            messagingSenderId: "178861367734",
+            appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
+        };
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+        } catch (e) {
+            alert("エラー: " + e.message);
         }
-        ref.child('win').on('value',s=>{
-            const w=s.val(); document.getElementById('win').innerText=w||"---";
-            if(w)beep();
+
+        const db = firebase.database();
+        const ref = db.ref('quiz_room');
+
+        // 音の準備（Web Audio API）
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            // ピコーン！という音
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // ラ
+            osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1); // 高いラ
+            
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        // 画面表示の更新
+        ref.child('winner').on('value', (snapshot) => {
+            const winner = snapshot.val();
+            const winDiv = document.getElementById('win');
+            
+            if (winner) {
+                if (winDiv.innerText !== winner) {
+                    winDiv.innerText = winner;
+                    playSound(); // 名前が変わった瞬間だけ音を鳴らす
+                }
+            } else {
+                winDiv.innerText = "---";
+            }
         });
-        document.getElementById('start').onclick=()=>ref.update({st:'open',win:null});
-        document.getElementById('reset').onclick=()=>ref.update({st:'close',win:null});
+
+        // 接続確認ランプ
+        const connectedRef = db.ref(".info/connected");
+        connectedRef.on("value", (snap) => {
+            const lamp = document.getElementById('lamp');
+            const status = document.getElementById('conn-status');
+            if (snap.val() === true) {
+                lamp.style.background = "#4CAF50"; // 緑
+                status.innerText = "OK";
+            } else {
+                lamp.style.background = "#ccc"; // 灰
+                status.innerText = "未接続";
+            }
+        });
+
+        // スタートボタン
+        document.getElementById('start').addEventListener('click', () => {
+            // 音声コンテキストの再開（タップ必須制限の解除）
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            ref.update({
+                state: 'open',
+                winner: null
+            }).catch(e => alert("通信エラー: " + e.message));
+        });
+
+        // リセットボタン
+        document.getElementById('reset').addEventListener('click', () => {
+            ref.update({
+                state: 'closed',
+                winner: null
+            });
+        });
     </script>
 </body>
 </html>
