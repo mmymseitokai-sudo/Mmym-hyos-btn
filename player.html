@@ -5,31 +5,29 @@
     <title>早押しボタン</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation;background:#fff0f5} /* 背景もうっすらピンク */
+        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation;background:#fff0f5}
         input{font-size:1.2em;padding:10px;width:80%;margin-bottom:20px;border:1px solid #ccc;border-radius:5px;}
         button{cursor:pointer;font-family:inherit;}
         #login-screen{margin-top:50px;}
         #game-screen{display:none;}
         
-        /* ▼▼▼ ボタンのデザイン（ピンク色） ▼▼▼ */
         #btn{
             width: 80vw; height: 80vw;
             max-width: 300px; max-height: 300px;
             border-radius: 50%; border: none;
             font-size: 2em; color: white;
-            background: #ccc; /* 待機中はグレー */
+            background: #ccc;
             box-shadow: 0 8px #999;
             transition: all 0.1s;
         }
-        /* 有効になった時の色（鮮やかなピンク） */
+        /* 有効時（ピンク） */
         #btn.active{
-            background: #ff66b2; 
-            box-shadow: 0 8px #cc338b;
+            background: #ff66b2 !important;
+            box-shadow: 0 8px #cc338b !important;
         }
-        /* 押した瞬間 */
         #btn:active{ transform:translateY(4px); box-shadow: 0 4px #999; }
         
-        #status{margin-top:20px;font-weight:bold;font-size:1.5em;min-height:1.5em;color:#555}
+        #status{margin-top:20px;font-weight:bold;font-size:2em;min-height:1.5em;color:#555}
     </style>
 </head>
 <body>
@@ -50,7 +48,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // ▼▼▼ 設定埋め込み済み ▼▼▼
         const firebaseConfig = {
             apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
             authDomain: "hayaoshi--momo.firebaseapp.com",
@@ -59,7 +56,6 @@
             messagingSenderId: "178861367734",
             appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
         };
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         try {
             if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -85,31 +81,48 @@
             const data = snapshot.val() || {};
             const state = data.state || 'closed';
             const winner = data.winner;
+            const judgment = data.judgment; // 判定結果（correct, incorrect, null）
 
-            // ■ 状態判定ロジック
+            // 1. 早押し受付中
             if (state === 'open' && !winner) {
-                // スタートボタンが押された（早押し受付中）
                 btn.disabled = false;
-                btn.className = 'active'; // ピンク色にするクラス
+                btn.className = 'active';
+                btn.style.background = "#ff66b2"; 
                 btn.innerText = "PUSH!";
                 status.innerText = "";
-            } else {
-                // 受付終了 or 誰かが押した
+            } 
+            // 2. 誰かが押したあと
+            else {
                 btn.disabled = true;
-                btn.className = ''; // グレーに戻す
+                btn.className = '';
                 
                 if (winner === myName) {
-                    // 自分が勝った時（ここも濃いピンクか赤にする）
-                    btn.style.background = "#ff3333"; 
-                    btn.innerText = "1着!!";
-                    status.style.color = "#ff3333";
-                    status.innerText = "回答権獲得！";
+                    // ★ 自分が回答権を持っている時の表示分岐 ★
+                    if (judgment === 'correct') {
+                        // 正解の時
+                        btn.style.background = "#ffcc00"; // 金色
+                        btn.innerText = "⭕️";
+                        status.style.color = "#e6ac00";
+                        status.innerText = "正解！！";
+                    } else if (judgment === 'incorrect') {
+                        // 不正解の時
+                        btn.style.background = "#3366ff"; // 青
+                        btn.innerText = "❌";
+                        status.style.color = "#3366ff";
+                        status.innerText = "不正解...";
+                    } else {
+                        // まだ判定待ちの時
+                        btn.style.background = "#ff3333"; // 赤
+                        btn.innerText = "1着!!";
+                        status.style.color = "#ff3333";
+                        status.innerText = "判定待ち";
+                    }
                 } else if (winner) {
-                    // 他の人が勝った時
+                    // 他の人が回答権を持っている時
                     btn.style.background = "#ccc";
                     btn.innerText = "LOCK";
                     status.style.color = "black";
-                    status.innerText = winner + " が獲得";
+                    status.innerText = winner + " が回答中";
                 } else {
                     // リセット中
                     btn.style.background = "#ccc";
