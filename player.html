@@ -2,61 +2,122 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ボタン</title>
+    <title>診断モード</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation}
+        body{font-family:sans-serif;text-align:center;padding:20px;}
         input{font-size:1.2em;padding:10px;width:80%;margin-bottom:20px}
         #game{display:none}
-        #btn{width:80vw;height:80vw;max-width:300px;max-height:300px;border-radius:50%;border:none;font-size:2em;color:#fff;background:#ccc;box-shadow:0 8px #999}
-        #btn.on{background:#f33;box-shadow:0 8px #c00}
-        #btn:active{transform:translateY(4px);box-shadow:0 4px #999}
-        #msg{margin-top:20px;font-size:1.5em;font-weight:bold}
+        #btn{width:80vw;height:80vw;max-width:300px;border-radius:50%;border:none;font-size:2em;color:#fff;background:#ccc;margin-top:20px;}
+        .error{color:red;font-weight:bold;border:2px solid red;padding:10px;margin:10px;display:none;background:#xffdddd;}
     </style>
 </head>
 <body>
-    <div id="login"><h2>名前</h2><input id="name"><br><button onclick="join()" style="font-size:1.2em;padding:10px">参加</button></div>
-    <div id="game"><h3><span id="dname"></span></h3><button id="btn" disabled>待機</button><div id="msg"></div></div>
+    <h1>早押しボタン</h1>
+    
+    <!-- エラー表示エリア -->
+    <div id="error-box" class="error"></div>
+
+    <div id="login">
+        <p>チーム名を入れてください</p>
+        <input id="name" type="text" placeholder="名前">
+        <br>
+        <button onclick="join()" style="font-size:1.5em;padding:15px 30px;">参加する</button>
+    </div>
+
+    <div id="game">
+        <h3><span id="dname"></span></h3>
+        <button id="btn" disabled>待機</button>
+        <div id="msg"></div>
+    </div>
+
+    <!-- 1. エラーを捕まえる仕組み -->
+    <script>
+        window.onerror = function(msg, url, line) {
+            var box = document.getElementById('error-box');
+            box.style.display = 'block';
+            box.innerHTML = "⚠️ エラーが発生しました！<br>" + msg + "<br>（" + line + "行目）";
+            alert("【設定ミスがあります】\n" + msg + "\n行: " + line);
+        };
+    </script>
+
+    <!-- 2. Firebaseの読み込み -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <!-- 3. あなたの設定 -->
     <script>
-        // ▼▼ Config書き換え ▼▼
-        const const firebaseConfig = {
-    apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
-    authDomain: "hayaoshi--momo.firebaseapp.com",
-    projectId: "hayaoshi--momo",
-    storageBucket: "hayaoshi--momo.firebasestorage.app",
-    messagingSenderId: "178861367734",
-    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
-    measurementId: "G-1EBXBQRBLK"
-  };
-        // ▲▲ 書き換えここまで ▲▲
-        firebase.initializeApp(cfg);
-        const db=firebase.database(), ref=db.ref('room');
-        let me="",ok=false;
-        function join(){
-            me=document.getElementById('name').value;
-            if(!me)return;
-            document.getElementById('login').style.display='none';
-            document.getElementById('game').style.display='block';
-            document.getElementById('dname').innerText=me;
-        }
-        const b=document.getElementById('btn'), m=document.getElementById('msg');
-        ref.on('value',s=>{
-            const d=s.val()||{};
-            if(d.st==='open'&&!d.win){
-                b.disabled=false;b.className='on';b.innerText="PUSH!";m.innerText="";ok=true;
-            }else{
-                b.disabled=true;b.className='';ok=false;
-                if(d.win===me){b.style.background="#f33";b.innerText="1着!";m.style.color="red";m.innerText="あなたが1着!"}
-                else if(d.win){b.style.background="#ccc";b.innerText="LOCK";m.style.color="#000";m.innerText=d.win+"が獲得"}
-                else{b.style.background="#ccc";b.innerText="待機";m.innerText="待ち..."}
-            }
-        });
-        b.onclick=(e)=>{
-            e.preventDefault(); if(!ok)return;
-            ref.child('win').transaction(c=>c===null?me:undefined);
+        // ▼▼▼ Config書き換えエリア ▼▼▼
+        // 下の { } の中身を、Firebaseからコピーしたものに書き換えてください。
+        // ※ "apiKey" ... の形式になっているか確認してください！
+        
+        const cfg = {
+            apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
+            authDomain: "hayaoshi--momo.firebaseapp.com",
+            projectId: "hayaoshi--momo",
+            storageBucket: "hayaoshi--momo.firebasestorage.app",
+　　　　　    messagingSenderId: "178861367734",
+　　　　　    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
+           measurementId: "G-1EBXBQRBLK"
         };
+        
+        // ▲▲▲ 書き換えここまで ▲▲▲
+
+        // 初期化処理
+        try {
+            if (cfg.apiKey === "ここに貼り付け") {
+                throw new Error("Configが書き換わっていません！");
+            }
+            firebase.initializeApp(cfg);
+            const db = firebase.database();
+            const ref = db.ref('room');
+            
+            // 参加ボタンの処理
+            window.join = function() {
+                var name = document.getElementById('name').value;
+                if (!name) return alert("名前を入力してください");
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('game').style.display = 'block';
+                document.getElementById('dname').innerText = name;
+                
+                // 接続テスト
+                ref.child('test').set('ok').catch(function(e){
+                    alert("通信エラー: " + e.message);
+                });
+            };
+
+            // 監視処理
+            const b = document.getElementById('btn');
+            const m = document.getElementById('msg');
+            let me = "";
+            
+            ref.on('value', function(s) {
+                const d = s.val() || {};
+                me = document.getElementById('dname').innerText;
+                if (d.st === 'open' && !d.win) {
+                    b.disabled = false; b.style.background = "#ff3333"; b.innerText = "PUSH!";
+                } else {
+                    b.disabled = true;
+                    if (d.win === me) {
+                        b.style.background = "#ff3333"; b.innerText = "YOU WIN!";
+                    } else {
+                        b.style.background = "#ccc"; b.innerText = "WAIT";
+                    }
+                }
+            });
+            
+            b.onclick = function() {
+                ref.child('win').transaction(function(c) {
+                    return c === null ? me : undefined;
+                });
+            };
+
+        } catch (e) {
+            // ここでエラーを表示
+            var box = document.getElementById('error-box');
+            box.style.display = 'block';
+            box.innerHTML = "⚠️ 設定コードの間違いです<br>" + e.message;
+        }
     </script>
 </body>
 </html>
