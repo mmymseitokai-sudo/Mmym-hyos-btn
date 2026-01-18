@@ -5,78 +5,74 @@
     <title>早押しボタン</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation;background:#f9f9f9}
+        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation;background:#fff0f5} /* 背景もうっすらピンク */
         input{font-size:1.2em;padding:10px;width:80%;margin-bottom:20px;border:1px solid #ccc;border-radius:5px;}
         button{cursor:pointer;font-family:inherit;}
         #login-screen{margin-top:50px;}
         #game-screen{display:none;}
-        #btn{width:80vw;height:80vw;max-width:300px;max-height:300px;border-radius:50%;border:none;font-size:2em;color:#fff;background:#ccc;box-shadow:0 8px #999;transition:all 0.1s}
-        #btn.active{background:#ff3333;box-shadow:0 8px #cc0000}
-        #btn:active{transform:translateY(4px);box-shadow:0 4px #999}
-        #status{margin-top:20px;font-weight:bold;font-size:1.5em;min-height:1.5em}
+        
+        /* ▼▼▼ ボタンのデザイン（ピンク色） ▼▼▼ */
+        #btn{
+            width: 80vw; height: 80vw;
+            max-width: 300px; max-height: 300px;
+            border-radius: 50%; border: none;
+            font-size: 2em; color: white;
+            background: #ccc; /* 待機中はグレー */
+            box-shadow: 0 8px #999;
+            transition: all 0.1s;
+        }
+        /* 有効になった時の色（鮮やかなピンク） */
+        #btn.active{
+            background: #ff66b2; 
+            box-shadow: 0 8px #cc338b;
+        }
+        /* 押した瞬間 */
+        #btn:active{ transform:translateY(4px); box-shadow: 0 4px #999; }
+        
+        #status{margin-top:20px;font-weight:bold;font-size:1.5em;min-height:1.5em;color:#555}
     </style>
 </head>
 <body>
-    <!-- 名前入力画面 -->
     <div id="login-screen">
-        <h2>チーム名を入力</h2>
+        <h2 style="color:#ff66b2">チーム名を入力</h2>
         <input type="text" id="team-name" placeholder="例：チームA">
         <br>
         <button onclick="joinGame()" style="font-size:1.2em;padding:12px 30px;background:#333;color:white;border:none;border-radius:5px;">参加する</button>
     </div>
 
-    <!-- 早押しボタン画面 -->
     <div id="game-screen">
         <h3 id="display-name" style="color:#555"></h3>
         <button id="btn" disabled>待機</button>
         <div id="status"></div>
     </div>
 
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-        // 【重要】Firebaseからコピーしたコードを、下の行にそのまま貼り付けてください
-        // もともと書いてある「★ここに貼り付け★」の行は消してください
-        
+        // ▼▼▼ 設定埋め込み済み ▼▼▼
         const firebaseConfig = {
-    apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
-    authDomain: "hayaoshi--momo.firebaseapp.com",
-    projectId: "hayaoshi--momo",
-    storageBucket: "hayaoshi--momo.firebasestorage.app",
-    messagingSenderId: "178861367734",
-    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
-    measurementId: "G-1EBXBQRBLK"
-  };
-        
-        // （例： const firebaseConfig = { ... }; というコードが入ればOKです）
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+            apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
+            authDomain: "hayaoshi--momo.firebaseapp.com",
+            projectId: "hayaoshi--momo",
+            storageBucket: "hayaoshi--momo.firebasestorage.app",
+            messagingSenderId: "178861367734",
+            appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
+        };
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-        // アプリ起動処理
         try {
-            if (typeof firebaseConfig === 'undefined') {
-                throw new Error("設定コードが貼り付けられていません！GitHubで編集してください。");
-            }
-            // 二重初期化防止
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-        } catch (e) {
-            alert("【設定エラー】\n" + e.message);
-        }
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        } catch (e) {}
 
         const db = firebase.database();
         const ref = db.ref('quiz_room');
         let myName = "";
 
-        // 参加ボタン
         function joinGame() {
             const input = document.getElementById('team-name');
             if (!input.value) return alert("名前を入れてください");
             myName = input.value;
-            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'block';
             document.getElementById('display-name').innerText = myName;
@@ -85,35 +81,37 @@
         const btn = document.getElementById('btn');
         const status = document.getElementById('status');
 
-        // 状態監視
         ref.on('value', (snapshot) => {
             const data = snapshot.val() || {};
-            // リセット直後や初期状態のハンドリング
             const state = data.state || 'closed';
             const winner = data.winner;
 
+            // ■ 状態判定ロジック
             if (state === 'open' && !winner) {
-                // 早押し受付中
+                // スタートボタンが押された（早押し受付中）
                 btn.disabled = false;
-                btn.className = 'active';
+                btn.className = 'active'; // ピンク色にするクラス
                 btn.innerText = "PUSH!";
                 status.innerText = "";
             } else {
                 // 受付終了 or 誰かが押した
                 btn.disabled = true;
-                btn.className = '';
+                btn.className = ''; // グレーに戻す
                 
                 if (winner === myName) {
-                    btn.style.background = "#ff3333";
+                    // 自分が勝った時（ここも濃いピンクか赤にする）
+                    btn.style.background = "#ff3333"; 
                     btn.innerText = "1着!!";
-                    status.style.color = "red";
+                    status.style.color = "#ff3333";
                     status.innerText = "回答権獲得！";
                 } else if (winner) {
+                    // 他の人が勝った時
                     btn.style.background = "#ccc";
                     btn.innerText = "LOCK";
                     status.style.color = "black";
                     status.innerText = winner + " が獲得";
                 } else {
+                    // リセット中
                     btn.style.background = "#ccc";
                     btn.innerText = "待機";
                     status.innerText = "出題待ち...";
@@ -121,10 +119,8 @@
             }
         });
 
-        // ボタンクリック
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            // トランザクションで早い者勝ち判定
             ref.child('winner').transaction((current) => {
                 return current === null ? myName : undefined;
             });
