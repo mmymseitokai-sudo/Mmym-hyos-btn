@@ -35,7 +35,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // ▼▼▼ あなたの設定コードを埋め込んでおきました ▼▼▼
+        // 設定コード
         const firebaseConfig = {
             apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
             authDomain: "hayaoshi--momo.firebaseapp.com",
@@ -44,7 +44,6 @@
             messagingSenderId: "178861367734",
             appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
         };
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         try {
             if (!firebase.apps.length) {
@@ -55,76 +54,62 @@
         }
 
         const db = firebase.database();
+        // ★ここが重要：プレイヤーと同じ 'quiz_room' に合わせました
         const ref = db.ref('quiz_room');
 
-        // 音の準備（Web Audio API）
+        // 音の準備
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
         function playSound() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            
-            // ピコーン！という音
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // ラ
-            osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1); // 高いラ
-            
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.1);
             gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-            
             osc.start();
             osc.stop(audioCtx.currentTime + 0.5);
         }
 
-        // 画面表示の更新
+        // 画面表示
         ref.child('winner').on('value', (snapshot) => {
             const winner = snapshot.val();
             const winDiv = document.getElementById('win');
-            
             if (winner) {
                 if (winDiv.innerText !== winner) {
                     winDiv.innerText = winner;
-                    playSound(); // 名前が変わった瞬間だけ音を鳴らす
+                    playSound();
                 }
             } else {
                 winDiv.innerText = "---";
             }
         });
 
-        // 接続確認ランプ
-        const connectedRef = db.ref(".info/connected");
-        connectedRef.on("value", (snap) => {
+        // 接続確認
+        db.ref(".info/connected").on("value", (snap) => {
             const lamp = document.getElementById('lamp');
             const status = document.getElementById('conn-status');
             if (snap.val() === true) {
-                lamp.style.background = "#4CAF50"; // 緑
-                status.innerText = "OK";
+                lamp.style.background = "#4CAF50";
+                status.innerText = "OK (Room: quiz_room)";
             } else {
-                lamp.style.background = "#ccc"; // 灰
+                lamp.style.background = "#ccc";
                 status.innerText = "未接続";
             }
         });
 
-        // スタートボタン
+        // スタート
         document.getElementById('start').addEventListener('click', () => {
-            // 音声コンテキストの再開（タップ必須制限の解除）
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            ref.update({
-                state: 'open',
-                winner: null
-            }).catch(e => alert("通信エラー: " + e.message));
+            ref.update({ state: 'open', winner: null });
         });
 
-        // リセットボタン
+        // リセット
         document.getElementById('reset').addEventListener('click', () => {
-            ref.update({
-                state: 'closed',
-                winner: null
-            });
+            ref.update({ state: 'closed', winner: null });
         });
     </script>
 </body>
