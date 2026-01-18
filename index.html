@@ -2,53 +2,56 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>早押しボタン</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>GM画面</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body{font-family:sans-serif;text-align:center;padding:20px;touch-action:manipulation;background:#fff0f5}
-        input{font-size:1.2em;padding:10px;width:80%;margin-bottom:20px;border:1px solid #ccc;border-radius:5px;}
-        button{cursor:pointer;font-family:inherit;}
-        #login-screen{margin-top:50px;}
-        #game-screen{display:none;}
+        body{font-family:sans-serif;text-align:center;padding:20px;background:#eee;touch-action:manipulation}
+        .box{background:#fff;padding:20px;border-radius:10px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}
+        h2{margin:0;color:#555;font-size:1em}
+        #win{font-size:3em;font-weight:bold;color:red;min-height:1.2em;margin-top:10px}
         
-        #btn{
-            width: 80vw; height: 80vw;
-            max-width: 300px; max-height: 300px;
-            border-radius: 50%; border: none;
-            font-size: 2em; color: white;
-            background: #ccc;
-            box-shadow: 0 8px #999;
-            transition: all 0.1s;
-        }
-        /* ピンク色の定義 */
-        #btn.active{
-            background: #ff66b2 !important; /* 強制的にピンクにする */
-            box-shadow: 0 8px #cc338b !important;
-        }
-        #btn:active{ transform:translateY(4px); box-shadow: 0 4px #999; }
+        /* 判定ボタンエリア（最初は隠す） */
+        #judge-area { display: none; margin-top: 20px; border-top: 2px dashed #ddd; padding-top: 20px; }
         
-        #status{margin-top:20px;font-weight:bold;font-size:1.5em;min-height:1.5em;color:#555}
+        button{font-size:1.5em;padding:15px;margin:10px;width:90%;max-width:400px;border-radius:10px;border:none;cursor:pointer;color:white;font-weight:bold}
+        
+        /* ボタンの色 */
+        #start{background:#ff9900;box-shadow:0 5px #cc7a00}
+        #reset{background:#666;box-shadow:0 5px #444}
+        
+        /* 正誤判定ボタン */
+        #btn-ok{background:#ff3333; width:40%; display:inline-block; font-size:2em;} /* 赤丸 */
+        #btn-ng{background:#3366ff; width:40%; display:inline-block; font-size:2em;} /* 青バツ */
+
+        button:active{transform:translateY(4px);box-shadow:none !important;}
+        
+        .status-lamp{display:inline-block;width:15px;height:15px;border-radius:50%;background:#ccc;margin-right:5px}
     </style>
 </head>
 <body>
-    <div id="login-screen">
-        <h2 style="color:#ff66b2">チーム名を入力</h2>
-        <input type="text" id="team-name" placeholder="例：チームA">
-        <br>
-        <button onclick="joinGame()" style="font-size:1.2em;padding:12px 30px;background:#333;color:white;border:none;border-radius:5px;">参加する</button>
+    <div class="box">
+        <h2>現在の回答権</h2>
+        <div id="win">---</div>
+
+        <!-- ここに判定ボタンを追加 -->
+        <div id="judge-area">
+            <button id="btn-ok">⭕️ 正解</button>
+            <button id="btn-ng">❌ 不正解</button>
+        </div>
     </div>
 
-    <div id="game-screen">
-        <h3 id="display-name" style="color:#555"></h3>
-        <button id="btn" disabled>待機</button>
-        <div id="status"></div>
+    <button id="start">問題スタート / 再開</button>
+    <br>
+    <button id="reset">リセット</button>
+
+    <div style="margin-top:20px;color:#888;font-size:0.8em">
+        <span id="lamp" class="status-lamp"></span>システム接続: <span id="conn-status">接続中...</span>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // ▼▼▼ あなたの設定コード ▼▼▼
         const firebaseConfig = {
             apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
             authDomain: "hayaoshi--momo.firebaseapp.com",
@@ -57,7 +60,6 @@
             messagingSenderId: "178861367734",
             appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
         };
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         try {
             if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -65,59 +67,97 @@
 
         const db = firebase.database();
         const ref = db.ref('quiz_room');
-        let myName = "";
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        function joinGame() {
-            const input = document.getElementById('team-name');
-            if (!input.value) return alert("名前を入れてください");
-            myName = input.value;
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('game-screen').style.display = 'block';
-            document.getElementById('display-name').innerText = myName;
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+            
+            if (type === 'pingpong') { // 早押し音
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.setValueAtTime(1760, now + 0.1);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(); osc.stop(now + 0.5);
+            } else if (type === 'ok') { // 正解音（ピンポンピンポン）
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1320, now);
+                osc.frequency.setValueAtTime(1320, now + 0.2); // 2回鳴らす
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.setValueAtTime(0, now + 0.15);
+                gain.gain.setValueAtTime(0.5, now + 0.2);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                osc.start(); osc.stop(now + 0.6);
+            } else if (type === 'ng') { // 不正解音（ブブー）
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.4);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(); osc.stop(now + 0.4);
+            }
         }
 
-        const btn = document.getElementById('btn');
-        const status = document.getElementById('status');
-
+        // 監視
         ref.on('value', (snapshot) => {
             const data = snapshot.val() || {};
-            const state = data.state || 'closed';
             const winner = data.winner;
+            const winDiv = document.getElementById('win');
+            const judgeArea = document.getElementById('judge-area');
 
-            if (state === 'open' && !winner) {
-                // ★ここを修正しました！強制的に色をピンクで上書きします
-                btn.disabled = false;
-                btn.className = 'active';
-                btn.style.background = "#ff66b2"; // これで確実にピンクになります！
-                btn.innerText = "PUSH!";
-                status.innerText = "";
-            } else {
-                btn.disabled = true;
-                btn.className = '';
-                
-                if (winner === myName) {
-                    btn.style.background = "#ff3333"; // 自分の勝ち（赤）
-                    btn.innerText = "1着!!";
-                    status.style.color = "#ff3333";
-                    status.innerText = "回答権獲得！";
-                } else if (winner) {
-                    btn.style.background = "#ccc"; // ロック（グレー）
-                    btn.innerText = "LOCK";
-                    status.style.color = "black";
-                    status.innerText = winner + " が獲得";
-                } else {
-                    btn.style.background = "#ccc"; // 待機（グレー）
-                    btn.innerText = "待機";
-                    status.innerText = "出題待ち...";
+            // 勝者が決まったら判定ボタンを表示
+            if (winner) {
+                if (winDiv.innerText !== winner) {
+                    winDiv.innerText = winner;
+                    playSound('pingpong');
                 }
+                judgeArea.style.display = 'block';
+            } else {
+                winDiv.innerText = "---";
+                judgeArea.style.display = 'none';
             }
         });
 
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            ref.child('winner').transaction((current) => {
-                return current === null ? myName : undefined;
-            });
+        // 正解ボタン
+        document.getElementById('btn-ok').addEventListener('click', () => {
+            playSound('ok');
+            ref.update({ judgment: 'correct' }); // 判定結果を送る
+        });
+
+        // 不正解ボタン
+        document.getElementById('btn-ng').addEventListener('click', () => {
+            playSound('ng');
+            ref.update({ judgment: 'incorrect' }); // 判定結果を送る
+        });
+
+        // スタート（再開）
+        document.getElementById('start').addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            // 状態をオープンにし、勝者と判定結果をリセット
+            ref.update({ state: 'open', winner: null, judgment: null });
+        });
+
+        // リセット
+        document.getElementById('reset').addEventListener('click', () => {
+            ref.update({ state: 'closed', winner: null, judgment: null });
+        });
+        
+        // 接続確認
+        db.ref(".info/connected").on("value", (snap) => {
+            const lamp = document.getElementById('lamp');
+            if (snap.val()) {
+                lamp.style.background = "#4CAF50";
+                document.getElementById('conn-status').innerText = "OK";
+            } else {
+                lamp.style.background = "#ccc";
+                document.getElementById('conn-status').innerText = "未接続";
+            }
         });
     </script>
 </body>
