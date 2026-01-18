@@ -2,121 +2,137 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>診断モード</title>
+    <title>早押しボタン（簡単設定版）</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body{font-family:sans-serif;text-align:center;padding:20px;}
+        body{font-family:sans-serif;text-align:center;padding:20px;background:#f5f5f5;touch-action:manipulation}
+        h2{margin:10px 0}
+        textarea{width:90%;height:100px;font-size:12px;margin-bottom:10px;border:1px solid #999;}
         input{font-size:1.2em;padding:10px;width:80%;margin-bottom:20px}
-        #game{display:none}
-        #btn{width:80vw;height:80vw;max-width:300px;border-radius:50%;border:none;font-size:2em;color:#fff;background:#ccc;margin-top:20px;}
-        .error{color:red;font-weight:bold;border:2px solid red;padding:10px;margin:10px;display:none;background:#xffdddd;}
+        button{font-size:1.2em;padding:10px 20px;margin:10px;border-radius:5px;border:none;cursor:pointer}
+        #setup-screen{display:block;}
+        #game-screen{display:none;}
+        #btn{width:80vw;height:80vw;max-width:300px;max-height:300px;border-radius:50%;font-size:2em;color:#fff;background:#ccc;box-shadow:0 8px #999}
+        #btn.active{background:#ff3333;box-shadow:0 8px #cc0000}
+        #status{margin-top:20px;font-weight:bold;font-size:1.5em;height:1.5em}
+        .guide{font-size:0.9em;color:#555;margin-bottom:5px;text-align:left;display:inline-block;width:90%;}
     </style>
 </head>
 <body>
-    <h1>早押しボタン</h1>
-    
-    <!-- エラー表示エリア -->
-    <div id="error-box" class="error"></div>
 
-    <div id="login">
-        <p>チーム名を入れてください</p>
-        <input id="name" type="text" placeholder="名前">
+    <!-- 1. 設定画面（サイトを開いた後に表示） -->
+    <div id="setup-screen">
+        <h2>初期設定</h2>
+        <div class="guide">①Firebaseの <code>const firebaseConfig = ...</code> のコードを丸ごとコピーして、下に貼り付けてください。</div>
+        <textarea id="config-input" placeholder="ここに貼り付け"></textarea>
         <br>
-        <button onclick="join()" style="font-size:1.5em;padding:15px 30px;">参加する</button>
+        <div class="guide">②チーム名を入力</div>
+        <input type="text" id="team-name" placeholder="チームA">
+        <br>
+        <button onclick="startGame()" style="background:#4CAF50;color:white;">ゲーム開始</button>
+        <br><br>
+        <button onclick="clearData()" style="background:#999;color:white;font-size:0.8em;">設定をクリアする</button>
     </div>
 
-    <div id="game">
-        <h3><span id="dname"></span></h3>
+    <!-- 2. ゲーム画面 -->
+    <div id="game-screen">
+        <h3 id="display-name"></h3>
         <button id="btn" disabled>待機</button>
-        <div id="msg"></div>
+        <div id="status"></div>
     </div>
 
-    <!-- 1. エラーを捕まえる仕組み -->
-    <script>
-        window.onerror = function(msg, url, line) {
-            var box = document.getElementById('error-box');
-            box.style.display = 'block';
-            box.innerHTML = "⚠️ エラーが発生しました！<br>" + msg + "<br>（" + line + "行目）";
-            alert("【設定ミスがあります】\n" + msg + "\n行: " + line);
-        };
-    </script>
-
-    <!-- 2. Firebaseの読み込み -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-    <!-- 3. あなたの設定 -->
     <script>
-        // ▼▼▼ Config書き換えエリア ▼▼▼
-        // 下の { } の中身を、Firebaseからコピーしたものに書き換えてください。
-        // ※ "apiKey" ... の形式になっているか確認してください！
-        
-        const cfg = {
-            apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
-            authDomain: "hayaoshi--momo.firebaseapp.com",
-            projectId: "hayaoshi--momo",
-            storageBucket: "hayaoshi--momo.firebasestorage.app",
-　　　　　    messagingSenderId: "178861367734",
-　　　　　    appId: "1:178861367734:web:a3445a7c9d7e1757ede117",
-           measurementId: "G-1EBXBQRBLK"
-        };
-        
-        // ▲▲▲ 書き換えここまで ▲▲▲
-
-        // 初期化処理
-        try {
-            if (cfg.apiKey === "ここに貼り付け") {
-                throw new Error("Configが書き換わっていません！");
+        // 以前の設定があれば自動で読み込む
+        window.onload = function() {
+            const savedConfig = localStorage.getItem('quiz_config');
+            if (savedConfig) {
+                document.getElementById('config-input').value = savedConfig;
             }
-            firebase.initializeApp(cfg);
-            const db = firebase.database();
-            const ref = db.ref('room');
-            
-            // 参加ボタンの処理
-            window.join = function() {
-                var name = document.getElementById('name').value;
-                if (!name) return alert("名前を入力してください");
-                document.getElementById('login').style.display = 'none';
-                document.getElementById('game').style.display = 'block';
-                document.getElementById('dname').innerText = name;
+        };
+
+        function startGame() {
+            const configText = document.getElementById('config-input').value;
+            const name = document.getElementById('team-name').value;
+
+            if (!configText) return alert("Firebaseのコードを貼り付けてください");
+            if (!name) return alert("チーム名を入力してください");
+
+            try {
+                // 入力されたテキストから必要な情報を抜き出す（魔法の処理）
+                const cleanText = configText.replace(/const\s+firebaseConfig\s*=\s*/, '').replace(/;/g, '');
+                // 危険なevalを使わず、JSONライクに変換して読み取る試み
+                // ※簡易的にevalを使用（この用途なら安全）
+                const config = eval('(' + cleanText + ')');
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(config);
+                }
                 
                 // 接続テスト
-                ref.child('test').set('ok').catch(function(e){
-                    alert("通信エラー: " + e.message);
-                });
-            };
+                const db = firebase.database();
+                const ref = db.ref('quiz_room');
+                
+                // 画面切り替え
+                document.getElementById('setup-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'block';
+                document.getElementById('display-name').innerText = name;
+                
+                // 保存しておく
+                localStorage.setItem('quiz_config', configText);
 
-            // 監視処理
-            const b = document.getElementById('btn');
-            const m = document.getElementById('msg');
-            let me = "";
-            
-            ref.on('value', function(s) {
-                const d = s.val() || {};
-                me = document.getElementById('dname').innerText;
-                if (d.st === 'open' && !d.win) {
-                    b.disabled = false; b.style.background = "#ff3333"; b.innerText = "PUSH!";
-                } else {
-                    b.disabled = true;
-                    if (d.win === me) {
-                        b.style.background = "#ff3333"; b.innerText = "YOU WIN!";
+                // ゲームロジック
+                const btn = document.getElementById('btn');
+                const status = document.getElementById('status');
+                
+                ref.on('value', (snapshot) => {
+                    const data = snapshot.val() || {};
+                    if (data.state === 'open' && !data.winner) {
+                        btn.disabled = false;
+                        btn.className = 'active';
+                        btn.innerText = "PUSH!";
+                        status.innerText = "";
                     } else {
-                        b.style.background = "#ccc"; b.innerText = "WAIT";
+                        btn.disabled = true;
+                        btn.className = '';
+                        if (data.winner === name) {
+                            btn.style.background = "#ff3333";
+                            btn.innerText = "1着!!";
+                            status.style.color = "red";
+                            status.innerText = "あなたが回答権獲得！";
+                        } else if (data.winner) {
+                            btn.style.background = "#ccc";
+                            btn.innerText = "LOCK";
+                            status.style.color = "black";
+                            status.innerText = data.winner + " が獲得";
+                        } else {
+                            btn.style.background = "#ccc";
+                            btn.innerText = "待機";
+                            status.innerText = "出題待ち...";
+                        }
                     }
-                }
-            });
-            
-            b.onclick = function() {
-                ref.child('win').transaction(function(c) {
-                    return c === null ? me : undefined;
                 });
-            };
 
-        } catch (e) {
-            // ここでエラーを表示
-            var box = document.getElementById('error-box');
-            box.style.display = 'block';
-            box.innerHTML = "⚠️ 設定コードの間違いです<br>" + e.message;
+                // 早押し処理
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    ref.child('winner').transaction((current) => {
+                        return current === null ? name : undefined;
+                    });
+                });
+
+            } catch (e) {
+                alert("【エラー】\nコードの貼り付けがうまくいっていません。\nFirebaseのコードを『const』から『;』まで全部コピーしていますか？\n\nエラー詳細: " + e.message);
+            }
+        }
+
+        function clearData() {
+            localStorage.removeItem('quiz_config');
+            document.getElementById('config-input').value = "";
+            alert("設定を消しました");
         }
     </script>
 </body>
