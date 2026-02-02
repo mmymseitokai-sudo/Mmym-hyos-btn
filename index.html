@@ -2,27 +2,27 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>GM画面</title>
+    <title>GM画面（順位判定）</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body{font-family:sans-serif;text-align:center;padding:20px;background:#eee;touch-action:manipulation}
-        .box{background:#fff;padding:20px;border-radius:10px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}
+        body{font-family:sans-serif;text-align:center;padding:10px;background:#eee;touch-action:manipulation}
+        .box{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}
         h2{margin:0;color:#555;font-size:1em}
-        #win{font-size:3em;font-weight:bold;color:red;min-height:1.2em;margin-top:10px}
         
-        /* 判定ボタンエリア（最初は隠す） */
-        #judge-area { display: none; margin-top: 20px; border-top: 2px dashed #ddd; padding-top: 20px; }
+        /* 順位リストのデザイン */
+        #ranking-list { text-align: left; padding: 10px; min-height: 50px; }
+        .rank-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 1.2em; color: #888; }
+        .rank-item.active { background: #ffe6e6; color: #000; font-weight: bold; border: 2px solid #ff3333; border-radius: 5px; }
+        .rank-item.ng { text-decoration: line-through; color: #ccc; }
+        .rank-badge { display:inline-block; width:30px; font-weight:bold; }
         
-        button{font-size:1.5em;padding:15px;margin:10px;width:90%;max-width:400px;border-radius:10px;border:none;cursor:pointer;color:white;font-weight:bold}
-        
-        /* ボタンの色 */
+        /* ボタン */
+        button{font-size:1.2em;padding:15px;margin:5px;width:95%;max-width:400px;border-radius:10px;border:none;cursor:pointer;color:white;font-weight:bold}
+        #judge-area { display: none; margin-top: 10px; border-top: 2px dashed #ddd; padding-top: 10px; }
+        #btn-ok{background:#ff3333; width:45%; display:inline-block; font-size:1.5em;}
+        #btn-ng{background:#3366ff; width:45%; display:inline-block; font-size:1.5em;}
         #start{background:#ff9900;box-shadow:0 5px #cc7a00}
         #reset{background:#666;box-shadow:0 5px #444}
-        
-        /* 正誤判定ボタン */
-        #btn-ok{background:#ff3333; width:40%; display:inline-block; font-size:2em;} /* 赤丸 */
-        #btn-ng{background:#3366ff; width:40%; display:inline-block; font-size:2em;} /* 青バツ */
-
         button:active{transform:translateY(4px);box-shadow:none !important;}
         
         .status-lamp{display:inline-block;width:15px;height:15px;border-radius:50%;background:#ccc;margin-right:5px}
@@ -30,28 +30,32 @@
 </head>
 <body>
     <div class="box">
-        <h2>現在の回答権</h2>
-        <div id="win">---</div>
+        <h2>早押し順位</h2>
+        <div id="ranking-list">
+            <div style="text-align:center;color:#ccc">待機中...</div>
+        </div>
 
-        <!-- ここに判定ボタンを追加 -->
+        <!-- 判定エリア -->
         <div id="judge-area">
             <button id="btn-ok">⭕️ 正解</button>
             <button id="btn-ng">❌ 不正解</button>
+            <div style="font-size:0.8em;color:#666;margin-top:5px">※不正解を押すと次の人に権限が移ります</div>
         </div>
     </div>
 
-    <button id="start">問題スタート / 再開</button>
+    <button id="start">次の問題へ（リセット＆開始）</button>
     <br>
-    <button id="reset">リセット</button>
+    <button id="reset">強制リセット</button>
 
     <div style="margin-top:20px;color:#888;font-size:0.8em">
-        <span id="lamp" class="status-lamp"></span>システム接続: <span id="conn-status">接続中...</span>
+        <span id="lamp" class="status-lamp"></span>接続: <span id="conn-status">...</span>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
+        // 設定コード（あなたのConfig）
         const firebaseConfig = {
             apiKey: "AIzaSyDGQBFnST2VjMmizssGall_Hk-mDXuwXis",
             authDomain: "hayaoshi--momo.firebaseapp.com",
@@ -61,103 +65,129 @@
             appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
         };
 
-        try {
-            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        } catch (e) {}
+        try { if (!firebase.apps.length) firebase.initializeApp(firebaseConfig); } catch (e) {}
 
         const db = firebase.database();
         const ref = db.ref('quiz_room');
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+        // 効果音
         function playSound(type) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-
+            osc.connect(gain); gain.connect(audioCtx.destination);
             const now = audioCtx.currentTime;
-            
-            if (type === 'pingpong') { // 早押し音
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, now);
-                osc.frequency.setValueAtTime(1760, now + 0.1);
-                gain.gain.setValueAtTime(0.5, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-                osc.start(); osc.stop(now + 0.5);
-            } else if (type === 'ok') { // 正解音（ピンポンピンポン）
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(1320, now);
-                osc.frequency.setValueAtTime(1320, now + 0.2); // 2回鳴らす
-                gain.gain.setValueAtTime(0.5, now);
-                gain.gain.setValueAtTime(0, now + 0.15);
-                gain.gain.setValueAtTime(0.5, now + 0.2);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
-                osc.start(); osc.stop(now + 0.6);
-            } else if (type === 'ng') { // 不正解音（ブブー）
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(150, now);
-                osc.frequency.linearRampToValueAtTime(100, now + 0.4);
-                gain.gain.setValueAtTime(0.5, now);
-                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
-                osc.start(); osc.stop(now + 0.4);
+
+            if (type === 'ping') { // 早押し音
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); osc.frequency.setValueAtTime(1760, now+0.1);
+                gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now+0.5);
+                osc.start(); osc.stop(now+0.5);
+            } else if (type === 'ok') { // 正解
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(1320, now); osc.frequency.setValueAtTime(1320, now+0.2);
+                gain.gain.setValueAtTime(0.5, now); gain.gain.setValueAtTime(0, now+0.15); gain.gain.setValueAtTime(0.5, now+0.2); gain.gain.exponentialRampToValueAtTime(0.01, now+0.6);
+                osc.start(); osc.stop(now+0.6);
+            } else if (type === 'ng') { // 不正解
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now+0.4);
+                gain.gain.setValueAtTime(0.5, now); gain.gain.linearRampToValueAtTime(0.01, now+0.4);
+                osc.start(); osc.stop(now+0.4);
             }
         }
 
-        // 監視
+        let currentQueue = [];
+        let currentIndex = 0;
+
+        // 監視と表示更新
         ref.on('value', (snapshot) => {
             const data = snapshot.val() || {};
-            const winner = data.winner;
-            const winDiv = document.getElementById('win');
+            const queue = data.queue || []; // 配列として取得
+            const idx = data.current_index || 0;
+            currentQueue = queue;
+            currentIndex = idx;
+            
+            const listDiv = document.getElementById('ranking-list');
             const judgeArea = document.getElementById('judge-area');
 
-            // 勝者が決まったら判定ボタンを表示
-            if (winner) {
-                if (winDiv.innerText !== winner) {
-                    winDiv.innerText = winner;
-                    playSound('pingpong');
-                }
-                judgeArea.style.display = 'block';
-            } else {
-                winDiv.innerText = "---";
+            // リスト表示の作成
+            if (queue.length === 0) {
+                listDiv.innerHTML = '<div style="text-align:center;color:#ccc">待機中...</div>';
                 judgeArea.style.display = 'none';
+            } else {
+                let html = '';
+                queue.forEach((name, i) => {
+                    let className = 'rank-item';
+                    let status = '';
+                    // 現在の回答権がある人
+                    if (i === idx) {
+                        className += ' active';
+                        status = ' 🎤回答中';
+                    }
+                    // 既に終わった人（不正解）
+                    if (i < idx) {
+                        className += ' ng';
+                        status = ' (❌)';
+                    }
+                    html += `<div class="${className}"><span class="rank-badge">${i+1}着</span> ${name}${status}</div>`;
+                });
+                listDiv.innerHTML = html;
+                
+                // まだ回答権がある人が残っていれば判定ボタンを表示
+                if (idx < queue.length) {
+                    judgeArea.style.display = 'block';
+                } else {
+                    judgeArea.style.display = 'none'; // 全員不正解などで終了
+                }
             }
+            
+            // 音を鳴らす（新しい人が増えた時だけ）
+            // ※簡易実装のため、ここではリストが増えたら鳴らす
+            if (window.lastLen && queue.length > window.lastLen) playSound('ping');
+            window.lastLen = queue.length;
         });
 
-        // 正解ボタン
+        // ⭕️ 正解
         document.getElementById('btn-ok').addEventListener('click', () => {
             playSound('ok');
-            ref.update({ judgment: 'correct' }); // 判定結果を送る
+            ref.update({ judgment: 'correct' });
+            // 正解したらそのままでOK（次の問題へ進むのはGMの手動）
         });
 
-        // 不正解ボタン
+        // ❌ 不正解（自動繰り上げ）
         document.getElementById('btn-ng').addEventListener('click', () => {
             playSound('ng');
-            ref.update({ judgment: 'incorrect' }); // 判定結果を送る
+            
+            // 1. まず「不正解」状態を表示
+            ref.update({ judgment: 'incorrect' });
+            
+            // 2. 1.5秒後に次の人へ権限を移す
+            setTimeout(() => {
+                ref.transaction((data) => {
+                    if (data) {
+                        data.judgment = null; // 判定リセット
+                        data.current_index = (data.current_index || 0) + 1; // 次の人へ
+                    }
+                    return data;
+                });
+            }, 1500);
         });
 
-        // スタート（再開）
+        // スタート（リセットして開始）
         document.getElementById('start').addEventListener('click', () => {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            // 状態をオープンにし、勝者と判定結果をリセット
-            ref.update({ state: 'open', winner: null, judgment: null });
+            window.lastLen = 0;
+            ref.set({
+                state: 'open',
+                queue: [],
+                current_index: 0,
+                judgment: null
+            });
         });
 
-        // リセット
-        document.getElementById('reset').addEventListener('click', () => {
-            ref.update({ state: 'closed', winner: null, judgment: null });
-        });
-        
         // 接続確認
         db.ref(".info/connected").on("value", (snap) => {
             const lamp = document.getElementById('lamp');
-            if (snap.val()) {
-                lamp.style.background = "#4CAF50";
-                document.getElementById('conn-status').innerText = "OK";
-            } else {
-                lamp.style.background = "#ccc";
-                document.getElementById('conn-status').innerText = "未接続";
-            }
+            if(snap.val()) { lamp.style.background = "#4CAF50"; document.getElementById('conn-status').innerText = "OK"; }
+            else { lamp.style.background = "#ccc"; document.getElementById('conn-status').innerText = "未接続"; }
         });
     </script>
 </body>
