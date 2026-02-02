@@ -12,8 +12,7 @@
         #game-screen{display:none;}
         
         #btn{
-            width: 80vw; height: 80vw;
-            max-width: 300px; max-height: 300px;
+            width: 80vw; height: 80vw; max-width: 300px; max-height: 300px;
             border-radius: 50%; border: none;
             font-size: 2em; color: white;
             background: #ccc;
@@ -21,13 +20,11 @@
             transition: all 0.1s;
         }
         /* 有効時（ピンク） */
-        #btn.active{
-            background: #ff66b2 !important;
-            box-shadow: 0 8px #cc338b !important;
-        }
+        #btn.active{ background: #ff66b2 !important; box-shadow: 0 8px #cc338b !important; }
         #btn:active{ transform:translateY(4px); box-shadow: 0 4px #999; }
         
-        #status{margin-top:20px;font-weight:bold;font-size:2em;min-height:1.5em;color:#555}
+        #status{margin-top:20px;font-weight:bold;font-size:1.8em;min-height:1.5em;color:#555}
+        #rank-info{margin-top:10px;font-size:1.2em;color:#888;}
     </style>
 </head>
 <body>
@@ -42,6 +39,7 @@
         <h3 id="display-name" style="color:#555"></h3>
         <button id="btn" disabled>待機</button>
         <div id="status"></div>
+        <div id="rank-info"></div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -57,9 +55,7 @@
             appId: "1:178861367734:web:a3445a7c9d7e1757ede117"
         };
 
-        try {
-            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        } catch (e) {}
+        try { if (!firebase.apps.length) firebase.initializeApp(firebaseConfig); } catch (e) {}
 
         const db = firebase.database();
         const ref = db.ref('quiz_room');
@@ -76,66 +72,79 @@
 
         const btn = document.getElementById('btn');
         const status = document.getElementById('status');
+        const rankInfo = document.getElementById('rank-info');
 
         ref.on('value', (snapshot) => {
             const data = snapshot.val() || {};
             const state = data.state || 'closed';
-            const winner = data.winner;
-            const judgment = data.judgment; // 判定結果（correct, incorrect, null）
+            const queue = data.queue || []; // 順位リスト
+            const idx = data.current_index || 0; // いま誰の番か
+            const judgment = data.judgment;
 
-            // 1. 早押し受付中
-            if (state === 'open' && !winner) {
+            // 自分がリストのどこにいるか探す（-1なら居ない）
+            const myRankIndex = queue.indexOf(myName);
+            const amIInQueue = myRankIndex !== -1;
+
+            // --- 状態ごとの表示切り替え ---
+
+            // 1. 早押し受付中（まだ自分が押していない時）
+            if (state === 'open' && !amIInQueue) {
                 btn.disabled = false;
                 btn.className = 'active';
                 btn.style.background = "#ff66b2"; 
                 btn.innerText = "PUSH!";
                 status.innerText = "";
+                rankInfo.innerText = "";
             } 
-            // 2. 誰かが押したあと
+            // 2. 誰かが押したあと（または自分が押した後）
             else {
                 btn.disabled = true;
                 btn.className = '';
                 
-                if (winner === myName) {
-                    // ★ 自分が回答権を持っている時の表示分岐 ★
-                    if (judgment === 'correct') {
-                        // 正解の時
-                        btn.style.background = "#ffcc00"; // 金色
-                        btn.innerText = "⭕️";
-                        status.style.color = "#e6ac00";
-                        status.innerText = "正解！！";
-                    } else if (judgment === 'incorrect') {
-                        // 不正解の時
-                        btn.style.background = "#3366ff"; // 青
-                        btn.innerText = "❌";
-                        status.style.color = "#3366ff";
-                        status.innerText = "不正解...";
+                if (amIInQueue) {
+                    // 自分はリストに入っている（押せた！）
+                    if (myRankIndex === idx) {
+                        // ★★★ 今、自分の番！ ★★★
+                        if (judgment === 'correct') {
+                            btn.style.background = "#ffcc00"; btn.innerText = "⭕️";
+                            status.style.color = "#e6ac00"; status.innerText = "正解！！";
+                            rankInfo.innerText = "";
+                        } else if (judgment === 'incorrect') {
+                            btn.style.background = "#3366ff"; btn.innerText = "❌";
+                            status.style.color = "#3366ff"; status.innerText = "不正解...";
+                            rankInfo.innerText = "";
+                        } else {
+                            btn.style.background = "#ff3333"; btn.innerText = "YOU";
+                            status.style.color = "#ff3333"; status.innerText = "回答権獲得！";
+                            rankInfo.innerText = "あなたが回答者です";
+                        }
+                    } else if (myRankIndex > idx) {
+                        // 自分の番はまだ来ていない（2着以降）
+                        btn.style.background = "#ccc"; btn.innerText = (myRankIndex + 1) + "着";
+                        status.style.color = "black"; status.innerText = "待機中...";
+                        rankInfo.innerText = `あなたは ${myRankIndex + 1}番目 です`;
                     } else {
-                        // まだ判定待ちの時
-                        btn.style.background = "#ff3333"; // 赤
-                        btn.innerText = "1着!!";
-                        status.style.color = "#ff3333";
-                        status.innerText = "判定待ち";
+                        // 自分の番はもう終わった（不正解で流れた後）
+                        btn.style.background = "#888"; btn.innerText = "❌";
+                        status.style.color = "#888"; status.innerText = "終了";
+                        rankInfo.innerText = "";
                     }
-                } else if (winner) {
-                    // 他の人が回答権を持っている時
-                    btn.style.background = "#ccc";
-                    btn.innerText = "LOCK";
-                    status.style.color = "black";
-                    status.innerText = winner + " が回答中";
                 } else {
-                    // リセット中
-                    btn.style.background = "#ccc";
-                    btn.innerText = "待機";
-                    status.innerText = "出題待ち...";
+                    // 自分は押せなかった（リスト外）
+                    btn.style.background = "#ccc"; btn.innerText = "LOCK";
+                    status.style.color = "black"; status.innerText = queue.length > 0 ? "他の人が回答中" : "待機";
+                    rankInfo.innerText = "";
                 }
             }
         });
 
+        // ボタンを押した時の処理（リストへの追加）
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            ref.child('winner').transaction((current) => {
-                return current === null ? myName : undefined;
+            ref.child('queue').transaction((currentQueue) => {
+                if (currentQueue === null) return [myName]; // 最初の一人
+                if (currentQueue.includes(myName)) return;  // 既に登録済みなら何もしない
+                return [...currentQueue, myName]; // 末尾に追加
             });
         });
     </script>
